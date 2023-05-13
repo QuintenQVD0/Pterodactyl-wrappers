@@ -126,17 +126,33 @@ std::string getLogDirectory() {
     }
 }
 
+// Function to print credits
+void printCredits() {
+    std::cout << "=== Pterodactyl Wrapper Application ===" << std::endl;
+    std::cout << "Author: QuintenQVD0" << std::endl;
+    std::cout << "Github: https://github.com/QuintenQVD0" << std::endl;
+    std::cout << "Version: 1.1" << std::endl;
+    std::cout << "===========================" << std::endl;
+    std::cout << std::endl;
+}
+
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <command> [args...]" << std::endl;
         return 1;
     }
-
+    // Print credits
+    printCredits();
+    
     // Generate the log file name with a timestamp
     std::string timestamp = getCurrentTimestamp();
     std::string logDir = getLogDirectory();
     std::string logFile = logDir + "/log_" + timestamp + ".log";
 
+    // Print the log file name
+    std::cout << "Log File: " << logFile << std::endl;
+    
     // Create the log directory if it doesn't exist
     struct stat st;
     if (stat(logDir.c_str(), &st) == -1) {
@@ -158,6 +174,7 @@ int main(int argc, char* argv[]) {
 
     // Launch the subprocess and capture its stdout
     launchSubprocess(command, logFile);
+    
 
     return 0;
 }
