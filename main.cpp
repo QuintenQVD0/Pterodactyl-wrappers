@@ -12,6 +12,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <iomanip>
+
 
 // Global variable to store the subprocess pid
 pid_t subprocessPid = 0;
@@ -20,9 +22,10 @@ pid_t subprocessPid = 0;
 std::string getCurrentTimestamp() {
     auto now = std::chrono::system_clock::now();
     std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-    std::stringstream ss;
-    ss << std::put_time(std::localtime(&currentTime), "%Y-%m-%d_%H-%M-%S");
-    return ss.str();
+    std::tm* localTime = std::localtime(&currentTime);
+    std::ostringstream oss;
+    oss << std::put_time(localTime, "%Y-%m-%d_%H-%M-%S");
+    return oss.str();
 }
 
 // Function to launch the subprocess and capture its stdout
