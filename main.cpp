@@ -89,8 +89,14 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
         char buffer[4096];
         ssize_t bytesRead;
         while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
-            std::cout.write(buffer, bytesRead);
-            logfile.write(buffer, bytesRead);
+            // Get the current timestamp
+            std::string timestamp = getCurrentTimestamp();
+
+            // Write the timestamped output to the console
+            std::cout << "[" << timestamp << "] " << std::string(buffer, bytesRead);
+
+            // Write the timestamped output to the log file
+            logfile << "[" << timestamp << "] " << std::string(buffer, bytesRead);
         }
 
         // Check for errors in reading from the pipe
