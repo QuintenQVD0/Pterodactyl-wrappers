@@ -33,7 +33,10 @@ std::string getCurrentTimestamp() {
 void launchSubprocess(const std::string& command, const std::string& logFile) {
     // Create a pipe to capture the subprocess stdout
     int pipefd[2];
-    pipe(pipefd);
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
 
     pid_t pid = fork();
     if (pid == 0) {
@@ -43,7 +46,10 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
         close(pipefd[0]);
 
         // Redirect the subprocess stdout to the write end of the pipe
-        dup2(pipefd[1], STDOUT_FILENO);
+        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+            perror("dup2");
+            exit(EXIT_FAILURE);
+        }
 
         // Execute the command
         std::vector<char*> argv;
@@ -74,6 +80,10 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
 
         // Open the log file for appending
         std::ofstream logfile(logFile, std::ofstream::app);
+        if (!logfile) {
+            std::cerr << "Error opening log file: " << logFile << std::endl;
+            exit(EXIT_FAILURE);
+        }
 
         // Read from the pipe and write to both the console and the log file
         char buffer[4096];
@@ -83,18 +93,28 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
             logfile.write(buffer, bytesRead);
         }
 
+        // Check for errors in reading from the pipe
+        if (bytesRead == -1) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+
         // Close the log file
         logfile.close();
 
         // Wait for the subprocess to finish
         int status;
-        waitpid(pid, &status, 0);
+        if (waitpid(pid, &status, 0) == -1) {
+            perror("waitpid");
+            exit(EXIT_FAILURE);
+        }
 
         // Reset the subprocess pid
         subprocessPid = 0;
     } else {
         // Forking failed
         perror("fork");
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -102,11 +122,17 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
 void sigtermHandler(int signum) {
     if (subprocessPid != 0) {
         // Send SIGTERM to the subprocess
-        kill(subprocessPid, SIGTERM);
+        if (kill(subprocessPid, SIGTERM) == -1) {
+            perror("kill");
+            exit(EXIT_FAILURE);
+        }
 
         // Wait for the subprocess to finish
         int status;
-        waitpid(subprocessPid, &status, 0);
+        if (waitpid(subprocessPid, &status, 0) == -1) {
+            perror("waitpid");
+            exit(EXIT_FAILURE);
+        }
 
         // Reset the subprocess pid
         subprocessPid = 0;
@@ -127,11 +153,12 @@ std::string getLogDirectory() {
 }
 
 // Function to print credits
-void printCredits() {
+void printCredits(const std::string& logFile) {
     std::cout << "=== Pterodactyl Wrapper Application ===" << std::endl;
     std::cout << "Author: QuintenQVD0" << std::endl;
     std::cout << "Github: https://github.com/QuintenQVD0" << std::endl;
-    std::cout << "Version: 1.1" << std::endl;
+    std::cout << "Version: 1.2" << std::endl;
+    std::cout << "Log File: " << logFile << std::endl;
     std::cout << "===========================" << std::endl;
     std::cout << std::endl;
 }
@@ -142,22 +169,23 @@ int main(int argc, char* argv[]) {
         std::cerr << "Usage: " << argv[0] << " <command> [args...]" << std::endl;
         return 1;
     }
-    // Print credits
-    printCredits();
     
     // Generate the log file name with a timestamp
     std::string timestamp = getCurrentTimestamp();
     std::string logDir = getLogDirectory();
     std::string logFile = logDir + "/log_" + timestamp + ".log";
 
-    // Print the log file name
-    std::cout << "Log File: " << logFile << std::endl;
-    
     // Create the log directory if it doesn't exist
     struct stat st;
     if (stat(logDir.c_str(), &st) == -1) {
-        mkdir(logDir.c_str(), 0700);
+        if (mkdir(logDir.c_str(), 0700) == -1) {
+            perror("mkdir");
+            return 1;
+        }
     }
+
+    // Print credits
+    printCredits(logFile);
 
     // Join the command and arguments into a single string
     std::ostringstream oss;
@@ -170,11 +198,13 @@ int main(int argc, char* argv[]) {
     struct sigaction action;
     memset(&action, 0, sizeof(action));
     action.sa_handler = sigtermHandler;
-    sigaction(SIGTERM, &action, nullptr);
+    if (sigaction(SIGTERM, &action, nullptr) == -1) {
+        perror("sigaction");
+        return 1;
+    }
 
     // Launch the subprocess and capture its stdout
     launchSubprocess(command, logFile);
-    
 
     return 0;
 }
