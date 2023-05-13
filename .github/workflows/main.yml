@@ -9,10 +9,10 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2.0.0
     - name: Build project
-      uses: nicledomaS/cmake_build_action@v1.4
-      with:
-        submodule_update: ON
-        run_tests: OFF
-        unit_test_build: -Dtest=ON
+      run: g++ -std=c++17 -o wrapper main.cpp
     - name: ls
       run: ls -la
+    - uses: actions/upload-artifact@v2
+      with:
+        path: wrapper
+        name: wrapper
