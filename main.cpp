@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <iomanip>
+#include <cstdlib>
 
 
 // Global variable to store the subprocess pid
@@ -115,6 +116,16 @@ void sigtermHandler(int signum) {
     exit(signum);
 }
 
+// Function to get the log directory path
+std::string getLogDirectory() {
+    const char* logDirEnv = std::getenv("WRAPPER_LOG_DIR");
+    if (logDirEnv != nullptr && logDirEnv[0] != '\0') {
+        return logDirEnv;
+    } else {
+        return "/home/container/logs";
+    }
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <command> [args...]" << std::endl;
@@ -123,7 +134,7 @@ int main(int argc, char* argv[]) {
 
     // Generate the log file name with a timestamp
     std::string timestamp = getCurrentTimestamp();
-    std::string logDir = "/home/container/logs";
+    std::string logDir = getLogDirectory();
     std::string logFile = logDir + "/log_" + timestamp + ".log";
 
     // Create the log directory if it doesn't exist
