@@ -74,12 +74,15 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
         }
         argv.push_back(nullptr);
 
+        // Clear sensitive data from memory
+        std::memset(command.data(), 0, command.size());
+
         execvp(argv[0], argv.data());
         perror("execvp");
 
         // Free the memory allocated by strdup()
         for (char* arg : argv) {
-            free(arg);
+            std::free(arg);
         }
 
         exit(EXIT_FAILURE);
@@ -108,12 +111,14 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
             // Get the current timestamp
             std::string timestamp = getCurrentTimestamp();
 
-            // Write the timestamp
             // Write the timestamped output to the console
             std::cout << "[" << timestamp << "] " << std::string(stdoutBuffer, stdoutBytesRead);
 
             // Write the timestamped output to the log file
             logfile << "[" << timestamp << "] " << std::string(stdoutBuffer, stdoutBytesRead);
+
+            // Clear sensitive data from memory
+            std::memset(stdoutBuffer, 0, sizeof(stdoutBuffer));
         }
 
         // Check for errors in reading from the stdout pipe
@@ -134,6 +139,9 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
 
             // Write the timestamped output to the log file
             logfile << "[" << timestamp << "] " << std::string(stderrBuffer, stderrBytesRead);
+
+            // Clear sensitive data from memory
+            std::memset(stderrBuffer, 0, sizeof(stderrBuffer));
         }
 
         // Check for errors in reading from the stderr pipe
@@ -196,6 +204,7 @@ void sigtermHandler(int signum) {
 }
 
 // Rest of the code remains unchanged...
+
 
 
 // Function to get the log directory path
