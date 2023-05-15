@@ -12,7 +12,7 @@ jobs:
       run: sudo apt -y install g++-aarch64-linux-gnu      
     - name: Build project amd64
       run: g++ -std=c++17 -o wrapper_amd64 main.cpp
-    - name: Build project amd64
+    - name: Build project arm64
       run: aarch64-linux-gnu-g++ -std=c++17 -o wrapper_arm64 main.cpp      
     - name: ls
       run: ls -la
