@@ -16,8 +16,9 @@
 #include <cstdlib>
 
 
-// Global variable to store the subprocess pid
+// Global variables to store the subprocess pids
 pid_t subprocessPid = 0;
+pid_t subprocessErrorPid = 0;
 
 // Function to get the current timestamp as a string
 std::string getCurrentTimestamp() {
@@ -29,11 +30,17 @@ std::string getCurrentTimestamp() {
     return oss.str();
 }
 
-// Function to launch the subprocess and capture its stdout
+// Function to launch the subprocess and capture its stdout and stderr
 void launchSubprocess(const std::string& command, const std::string& logFile) {
-    // Create a pipe to capture the subprocess stdout
-    int pipefd[2];
-    if (pipe(pipefd) == -1) {
+    // Create pipes to capture the subprocess stdout and stderr
+    int stdoutPipe[2];
+    if (pipe(stdoutPipe) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    int stderrPipe[2];
+    if (pipe(stderrPipe) == -1) {
         perror("pipe");
         exit(EXIT_FAILURE);
     }
@@ -42,11 +49,18 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
     if (pid == 0) {
         // Child process
 
-        // Close the read end of the pipe
-        close(pipefd[0]);
+        // Close unused ends of the pipes
+        close(stdoutPipe[0]);
+        close(stderrPipe[0]);
 
-        // Redirect the subprocess stdout to the write end of the pipe
-        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+        // Redirect the subprocess stdout to the write end of stdoutPipe
+        if (dup2(stdoutPipe[1], STDOUT_FILENO) == -1) {
+            perror("dup2");
+            exit(EXIT_FAILURE);
+        }
+
+        // Redirect the subprocess stderr to the write end of stderrPipe
+        if (dup2(stderrPipe[1], STDERR_FILENO) == -1) {
             perror("dup2");
             exit(EXIT_FAILURE);
         }
@@ -72,11 +86,13 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
     } else if (pid > 0) {
         // Parent process
 
-        // Store the subprocess pid
+        // Store the subprocess pids
         subprocessPid = pid;
+        subprocessErrorPid = pid;
 
-        // Close the write end of the pipe
-        close(pipefd[1]);
+        // Close unused ends of the pipes
+        close(stdoutPipe[1]);
+        close(stderrPipe[1]);
 
         // Open the log file for appending
         std::ofstream logfile(logFile, std::ofstream::app);
@@ -85,22 +101,43 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
             exit(EXIT_FAILURE);
         }
 
-        // Read from the pipe and write to both the console and the log file
-        char buffer[4096];
-        ssize_t bytesRead;
-        while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
+        // Read from the stdout pipe and write to both the console and the log file
+        char stdoutBuffer[4096];
+        ssize_t stdoutBytesRead;
+        while ((stdoutBytesRead = read(stdoutPipe[0], stdoutBuffer, sizeof(stdoutBuffer))) > 0) {
+            // Get the current timestamp
+            std::string timestamp = getCurrentTimestamp();
+
+            // Write the timestamp
+            // Write the timestamped output to the console
+            std::cout << "[" << timestamp << "] " << std::string(stdoutBuffer, stdoutBytesRead);
+
+            // Write the timestamped output to the log file
+            logfile << "[" << timestamp << "] " << std::string(stdoutBuffer, stdoutBytesRead);
+        }
+
+        // Check for errors in reading from the stdout pipe
+        if (stdoutBytesRead == -1) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+
+        // Read from the stderr pipe and write to both the console and the log file
+        char stderrBuffer[4096];
+        ssize_t stderrBytesRead;
+        while ((stderrBytesRead = read(stderrPipe[0], stderrBuffer, sizeof(stderrBuffer))) > 0) {
             // Get the current timestamp
             std::string timestamp = getCurrentTimestamp();
 
             // Write the timestamped output to the console
-            std::cout << "[" << timestamp << "] " << std::string(buffer, bytesRead);
+            std::cerr << "[" << timestamp << "] " << std::string(stderrBuffer, stderrBytesRead);
 
             // Write the timestamped output to the log file
-            logfile << "[" << timestamp << "] " << std::string(buffer, bytesRead);
+            logfile << "[" << timestamp << "] " << std::string(stderrBuffer, stderrBytesRead);
         }
 
-        // Check for errors in reading from the pipe
-        if (bytesRead == -1) {
+        // Check for errors in reading from the stderr pipe
+        if (stderrBytesRead == -1) {
             perror("read");
             exit(EXIT_FAILURE);
         }
@@ -115,8 +152,9 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
             exit(EXIT_FAILURE);
         }
 
-        // Reset the subprocess pid
+        // Reset the subprocess pids
         subprocessPid = 0;
+        subprocessErrorPid = 0;
     } else {
         // Forking failed
         perror("fork");
@@ -127,26 +165,38 @@ void launchSubprocess(const std::string& command, const std::string& logFile) {
 // Signal handler for SIGTERM
 void sigtermHandler(int signum) {
     if (subprocessPid != 0) {
-        // Send SIGTERM to the subprocess
+        // Send SIGTERM to the subprocesses
         if (kill(subprocessPid, SIGTERM) == -1) {
             perror("kill");
             exit(EXIT_FAILURE);
         }
+        if (kill(subprocessErrorPid, SIGTERM) == -1) {
+            perror("kill");
+            exit(EXIT_FAILURE);
+        }
 
-        // Wait for the subprocess to finish
+        // Wait for the subprocesses to finish
         int status;
         if (waitpid(subprocessPid, &status, 0) == -1) {
             perror("waitpid");
             exit(EXIT_FAILURE);
         }
+        if (waitpid(subprocessErrorPid, &status, 0) == -1) {
+            perror("waitpid");
+            exit(EXIT_FAILURE);
+        }
 
-        // Reset the subprocess pid
+        // Reset the subprocess pids
         subprocessPid = 0;
+        subprocessErrorPid = 0;
     }
 
     // Exit the wrapper
     exit(signum);
 }
+
+// Rest of the code remains unchanged...
+
 
 // Function to get the log directory path
 std::string getLogDirectory() {
@@ -163,7 +213,7 @@ void printCredits(const std::string& logFile) {
     std::cout << "=== Pterodactyl Wrapper Application ===" << std::endl;
     std::cout << "Author: QuintenQVD0" << std::endl;
     std::cout << "Github: https://github.com/QuintenQVD0" << std::endl;
-    std::cout << "Version: 1.2" << std::endl;
+    std::cout << "Version: 1.3" << std::endl;
     std::cout << "Log File: " << logFile << std::endl;
     std::cout << "===========================" << std::endl;
     std::cout << std::endl;
