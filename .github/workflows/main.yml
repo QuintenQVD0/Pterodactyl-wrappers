@@ -7,12 +7,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v2.0.0
-    - name: Build project
-      run: g++ -std=c++17 -o wrapper main.cpp
+      uses: actions/checkout@v3
+    - name: install packages
+      run: sudo apt -y install g++-aarch64-linux-gnu      
+    - name: Build project amd64
+      run: g++ -std=c++17 -o wrapper_amd64 main.cpp
+    - name: Build project amd64
+      run: aarch64-linux-gnu-g++ -std=c++17 -o wrapper_arm64 main.cpp      
     - name: ls
       run: ls -la
-    - uses: actions/upload-artifact@v2
+    - name: move
+      run: |
+        mkdir build
+        mv wrapper_* build/
+    - uses: actions/upload-artifact@v3.1.2
       with:
-        path: wrapper
-        name: wrapper
+        path: build/*
