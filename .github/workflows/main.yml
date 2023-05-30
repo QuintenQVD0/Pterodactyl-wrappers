@@ -9,7 +9,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
     - name: install packages
-      run: sudo apt -y install g++-aarch64-linux-gnu      
+      run: sudo apt update && sudo apt -y install g++-aarch64-linux-gnu      
     - name: Build project logfile amd64
       run: g++ -std=c++17 -o logfile_wrapper_amd64 logfile.cpp
     - name: Build project logfile arm64
