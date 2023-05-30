@@ -10,16 +10,19 @@ jobs:
       uses: actions/checkout@v3
     - name: install packages
       run: sudo apt -y install g++-aarch64-linux-gnu      
-    - name: Build project amd64
-      run: g++ -std=c++17 -o wrapper_amd64 main.cpp
-    - name: Build project arm64
-      run: aarch64-linux-gnu-g++ -std=c++17 -o wrapper_arm64 main.cpp      
+    - name: Build project logfile amd64
+      run: g++ -std=c++17 -o logfile_wrapper_amd64 logfile.cpp
+    - name: Build project logfile arm64
+      run: aarch64-linux-gnu-g++ -std=c++17 -o logfile_wrapper_arm64 logfile.cpp  
+    - name: Build project fivem amd64
+      run: g++ -std=c++17 -o fivem_wrapper_amd64 fivem.cpp            
     - name: ls
       run: ls -la
     - name: move
       run: |
         mkdir build
-        mv wrapper_* build/
-    - uses: actions/upload-artifact@v3.1.2
+        mv logfile_wrapper_* build/
+        mv fivem_wrapper_* build/
+    - uses: actions/upload-artifact@v3
       with:
         path: build/*
