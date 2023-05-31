@@ -15,7 +15,7 @@ jobs:
     - name: Build project logfile arm64
       run: aarch64-linux-gnu-g++ -std=c++17 -o logfile_wrapper_arm64 logfile.cpp  
     - name: Build project fivem amd64
-      run: g++ -std=c++17 -o fivem_wrapper_amd64 fivem.cpp            
+      run: g++ -std=c++17 -o fivem_wrapper_amd64 fivem.cpp -lutil         
     - name: ls
       run: ls -la
     - name: move
