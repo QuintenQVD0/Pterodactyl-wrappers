@@ -54,7 +54,26 @@ int main(int argc, char** argv) {
     args.push_back(nullptr);
 
     // Execute the FiveM server command
-    execvp(args[0], args.data());
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("Failed to fork");
+        return 1;
+    } else if (pid == 0) {
+        // Child process
+        execvp(args[0], args.data());
+        exit(EXIT_FAILURE);
+    }
+
+    // Redirect console output to the original terminal
+    close(STDOUT_FILENO);
+    dup2(tty_settings.c_oflag, STDOUT_FILENO);
+
+    // Wait for the child process to exit
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+        perror("Error waiting for child process");
+        return 1;
+    }
 
     return 0;
 }
