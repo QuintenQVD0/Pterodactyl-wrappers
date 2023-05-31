@@ -1,77 +1,53 @@
 #include <iostream>
-#include <pty.h>
-#include <termios.h>
-#include <cstring>
-#include <cstdio>
-#include <cstdlib>
+#include <string>
+#include <vector>
 #include <unistd.h>
-#include <sys/select.h>
+#include <termios.h>
 
-int main(int argc, char* argv[]) {
-    // Check if startup arguments for FiveM server are provided
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <fivem_args...>" << std::endl;
-        return 1;
+void printStatus(const std::string& message) {
+    std::cout << "[Wrapper] " << message << std::endl;
+}
+
+int main(int argc, char** argv) {
+    // Collect all the arguments for the FiveM server command
+    std::vector<std::string> arguments;
+    for (int i = 1; i < argc; ++i) {
+        arguments.emplace_back(argv[i]);
     }
 
-    int master_fd;
-    pid_t fivem_pid = forkpty(&master_fd, nullptr, nullptr, nullptr);
+    printStatus("Wrapper started");
 
-    if (fivem_pid == -1) {
-        std::cerr << "Failed to fork process for FiveM server." << std::endl;
-        return 1;
-    } else if (fivem_pid == 0) {
-        // Child process - start FiveM server
-        execvp(argv[1], &argv[1]);
-        return 0;
-    } else {
-        // Parent process - enable regular input
-        struct termios old_settings, new_settings;
-        tcgetattr(fileno(stdin), &old_settings);
-        new_settings = old_settings;
-        new_settings.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(fileno(stdin), TCSANOW, &new_settings);
+    // Get the file descriptor for the current terminal (tty)
+    int tty_fd = STDIN_FILENO;
 
-        // Loop to read user input and send it to FiveM server
-        char input[256];
-        while (true) {
-            fd_set fds;
-            FD_ZERO(&fds);
-            FD_SET(fileno(stdin), &fds);
-            FD_SET(master_fd, &fds);
+    // Save the current terminal settings
+    termios tty_settings;
+    tcgetattr(tty_fd, &tty_settings);
 
-            int max_fd = std::max(fileno(stdin), master_fd);
-            int ready_fds = select(max_fd + 1, &fds, nullptr, nullptr, nullptr);
+    // Set the terminal to raw mode to pass input directly
+    termios raw_settings = tty_settings;
+    cfmakeraw(&raw_settings);
+    tcsetattr(tty_fd, TCSANOW, &raw_settings);
 
-            if (ready_fds == -1) {
-                std::cerr << "Error in select()" << std::endl;
-                break;
-            }
+    printStatus("Input mode set to raw");
 
-            if (FD_ISSET(fileno(stdin), &fds)) {
-                if (fgets(input, sizeof(input), stdin) == nullptr) {
-                    std::cout << "EOF received. Exiting..." << std::endl;
-                    break;
-                }
+    // Sleep for 3 seconds
+    sleep(3);
 
-                write(master_fd, input, strlen(input));
-            }
+    printStatus("Starting the FiveM server");
 
-            if (FD_ISSET(master_fd, &fds)) {
-                ssize_t bytes_read = read(master_fd, input, sizeof(input));
-                if (bytes_read <= 0) {
-                    std::cout << "FiveM server has stopped." << std::endl;
-                    break;
-                }
+    // Restore the original terminal settings
+    tcsetattr(tty_fd, TCSANOW, &tty_settings);
 
-                std::cout.write(input, bytes_read);
-                std::cout.flush();
-            }
-        }
-
-        // Restore tty settings
-        tcsetattr(fileno(stdin), TCSANOW, &old_settings);
+    // Convert vector of arguments to char* array
+    std::vector<char*> args;
+    for (const auto& arg : arguments) {
+        args.push_back(const_cast<char*>(arg.c_str()));
     }
+    args.push_back(nullptr);
+
+    // Execute the FiveM server command
+    execvp(args[0], args.data());
 
     return 0;
 }
