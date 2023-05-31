@@ -1,11 +1,25 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <thread>
+#include <chrono>
+#include <atomic>
 #include <unistd.h>
 #include <termios.h>
 
 void printStatus(const std::string& message) {
     std::cout << "[Wrapper] " << message << std::endl;
+}
+
+void readInput(std::atomic<bool>& running) {
+    // Read input from the console and send it to the subprocess
+    char ch;
+    while (running) {
+        if (std::cin.get(ch)) {
+            std::cout.put(ch);
+            std::cout.flush();
+        }
+    }
 }
 
 int main(int argc, char** argv) {
@@ -31,8 +45,12 @@ int main(int argc, char** argv) {
 
     printStatus("Input mode set to raw");
 
+    // Start the input reading thread
+    std::atomic<bool> running{true};
+    std::thread inputThread(readInput, std::ref(running));
+
     // Sleep for 3 seconds
-    sleep(3);
+    std::this_thread::sleep_for(std::chrono::seconds(3));
 
     printStatus("Starting the FiveM server");
 
@@ -48,6 +66,10 @@ int main(int argc, char** argv) {
 
     // Execute the FiveM server command
     execvp(args[0], args.data());
+
+    // Stop the input reading thread
+    running = false;
+    inputThread.join();
 
     return 0;
 }
