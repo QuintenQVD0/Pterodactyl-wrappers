@@ -1,25 +1,17 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <thread>
-#include <chrono>
-#include <atomic>
 #include <unistd.h>
+#include <pty.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
 #include <termios.h>
+#include <cstring>
+#include <cstdlib>
 
 void printStatus(const std::string& message) {
     std::cout << "[Wrapper] " << message << std::endl;
-}
-
-void readInput(std::atomic<bool>& running) {
-    // Read input from the console and send it to the subprocess
-    char ch;
-    while (running) {
-        if (std::cin.get(ch)) {
-            std::cout.put(ch);
-            std::cout.flush();
-        }
-    }
 }
 
 int main(int argc, char** argv) {
@@ -31,31 +23,28 @@ int main(int argc, char** argv) {
 
     printStatus("Wrapper started");
 
-    // Get the file descriptor for the current terminal (tty)
-    int tty_fd = STDIN_FILENO;
+    // Create a pseudo-terminal (pty)
+    int master_fd, slave_fd;
+    char slave_name[64];
+    if (openpty(&master_fd, &slave_fd, slave_name, nullptr, nullptr) == -1) {
+        perror("Failed to open pseudo-terminal");
+        return 1;
+    }
 
     // Save the current terminal settings
     termios tty_settings;
-    tcgetattr(tty_fd, &tty_settings);
+    tcgetattr(STDIN_FILENO, &tty_settings);
 
-    // Set the terminal to raw mode to pass input directly
-    termios raw_settings = tty_settings;
-    cfmakeraw(&raw_settings);
-    tcsetattr(tty_fd, TCSANOW, &raw_settings);
+    // Set the pseudo-terminal (pty) as the standard input and output
+    dup2(slave_fd, STDIN_FILENO);
+    dup2(slave_fd, STDOUT_FILENO);
+    dup2(slave_fd, STDERR_FILENO);
 
-    printStatus("Input mode set to raw");
-
-    // Start the input reading thread
-    std::atomic<bool> running{true};
-    std::thread inputThread(readInput, std::ref(running));
-
-    // Sleep for 3 seconds
-    std::this_thread::sleep_for(std::chrono::seconds(3));
-
-    printStatus("Starting the FiveM server");
+    // Close the slave file descriptor
+    close(slave_fd);
 
     // Restore the original terminal settings
-    tcsetattr(tty_fd, TCSANOW, &tty_settings);
+    tcsetattr(STDIN_FILENO, TCSANOW, &tty_settings);
 
     // Convert vector of arguments to char* array
     std::vector<char*> args;
@@ -66,10 +55,6 @@ int main(int argc, char** argv) {
 
     // Execute the FiveM server command
     execvp(args[0], args.data());
-
-    // Stop the input reading thread
-    running = false;
-    inputThread.join();
 
     return 0;
 }
