@@ -9,6 +9,7 @@
 #include <termios.h>
 #include <cstring>
 #include <cstdlib>
+#include <sys/wait.h>
 
 void printStatus(const std::string& message) {
     std::cout << "[Wrapper] " << message << std::endl;
